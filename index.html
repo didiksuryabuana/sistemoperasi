@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bab 1 - Sub-Bab 1.1: Arsitektur Kernel & Proses | TKJ SMK Wikrama Bogor</title>
+  <style>
+    :root {
+      --bg-outer: #0a0e17;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --accent-cyan: #0284c7;
+      --accent-blue: #1d4ed8;
+      --accent-red: #dc2626;
+      --accent-green: #10b981;
+      --terminal-bg: #0c1017;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "Fira Code", "Consolas", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-outer);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      height: 56px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 14, 23, 0.95);
+      z-index: 20;
+    }
+
+    .top-left-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .menu-toggle-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .menu-toggle-btn:hover {
+      background: #334155;
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+
+    .top-bar .title {
+      color: #f8fafc;
+      font-weight: 700;
+      font-size: 0.92rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .session-badge {
+      background: rgba(2, 132, 199, 0.15);
+      color: #38bdf8;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      text-transform: uppercase;
+    }
+
+    .top-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .counter-text {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: #cbd5e1;
+      font-size: 0.88rem;
+    }
+
+    .nav-arrow-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .nav-arrow-btn:hover {
+      background: #334155;
+    }
+
+    /* Sidebar Drawer (Thumbnail Preview) */
+    .sidebar-overlay {
+      position: fixed;
+      top: 56px;
+      left: 0;
+      width: 100vw;
+      height: calc(100vh - 56px);
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 30;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .sidebar-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .slide-sidebar {
+      position: fixed;
+      top: 56px;
+      left: 0;
+      width: 380px;
+      max-width: 85vw;
+      height: calc(100vh - 56px);
+      background: #0f172a;
+      border-right: 1px solid #1e293b;
+      z-index: 40;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .slide-sidebar.open {
+      transform: translateX(0);
+    }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #f8fafc;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .sidebar-close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .sidebar-close-btn:hover { color: #fff; }
+
+    .sidebar-search-box {
+      padding: 12px 18px;
+      border-bottom: 1px solid #1e293b;
+      background: #09101f;
+    }
+
+    .sidebar-search-input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+      font-family: var(--font-sans);
+    }
+    .sidebar-search-input:focus { border-color: #38bdf8; }
+
+    .sidebar-scroll-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Thumbnail Card Kecil */
+    .thumb-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+    }
+
+    .thumb-card:hover {
+      background: #273549;
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+
+    .thumb-card.active {
+      background: rgba(2, 132, 199, 0.15);
+      border-color: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+    }
+
+    .thumb-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.72rem;
+    }
+
+    .thumb-num {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .thumb-tag {
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-size: 0.68rem;
+      font-weight: 600;
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .thumb-title {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #f8fafc;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Stage Presentation */
+    .stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 28px;
+      min-height: 0;
+    }
+
+    .slide-card {
+      background: var(--card-bg);
+      border-radius: 18px;
+      width: 96%;
+      max-width: 1260px;
+      height: 92%;
+      padding: 32px 42px;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.6);
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .slide-card.active {
+      display: flex;
+    }
+
+    /* Cover Card */
+    .slide-card.cover-card {
+      background: radial-gradient(circle at 50% 20%, #172554 0%, #09101f 75%);
+      color: #ffffff;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      padding: 30px 40px;
+    }
+
+    .cover-top-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .cover-program {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: #38bdf8;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .cover-subprogram {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+
+    .cover-chapter-badge {
+      background: rgba(56, 189, 248, 0.1);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 3px 14px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .cover-main-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .cover-title {
+      font-size: 2.4rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.15;
+    }
+
+    .cover-subtitle {
+      font-size: 1.05rem;
+      color: #94a3b8;
+      max-width: 800px;
+      line-height: 1.5;
+    }
+
+    .cover-bottom-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 860px;
+      gap: 16px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .teacher-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: left;
+    }
+
+    .teacher-avatar {
+      width: 38px;
+      height: 38px;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+
+    .teacher-name {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .teacher-certs {
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: #38bdf8;
+    }
+
+    .meta-pills {
+      display: flex;
+      gap: 10px;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      color: #cbd5e1;
+    }
+
+    .meta-pill-item {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 6px 12px;
+      border-radius: 8px;
+    }
+
+    /* Standard Card Header */
+    .slide-header {
+      margin-bottom: 14px;
+    }
+
+    .slide-category {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 4px;
+    }
+
+    .slide-title {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    /* Split Layout */
+    .slide-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 28px;
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .text-content {
+      font-size: 1.08rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .text-content ul {
+      margin-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .text-content li strong {
+      color: var(--text-main);
+    }
+
+    /* Live Interactive Terminal */
+    .terminal-container {
+      background: var(--terminal-bg);
+      border: 1px solid #1f293d;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      height: 100%;
+      min-height: 310px;
+    }
+
+    .terminal-header-bar {
+      background: #111722;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1f293d;
+    }
+
+    .terminal-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .terminal-tab-title {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: #94a3b8;
+    }
+
+    .challenge-status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-family: var(--font-sans);
+    }
+    .status-pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; }
+    .status-success { background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; }
+
+    .terminal-screen {
+      flex: 1;
+      padding: 12px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: #f1f5f9;
+      overflow-y: auto;
+      cursor: text;
+    }
+
+    .history-entry {
+      margin-bottom: 6px;
+    }
+
+    .term-prompt {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    .term-path {
+      color: #a855f7;
+    }
+
+    .term-char {
+      color: #f8fafc;
+    }
+
+    .term-output {
+      color: #cbd5e1;
+      margin-top: 2px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .term-output.error {
+      color: #f87171;
+    }
+
+    .term-output.success-msg {
+      color: #34d399;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-top: 4px;
+      border-left: 3px solid #10b981;
+    }
+
+    .terminal-input-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .term-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #a7f3d0;
+      caret-color: #38bdf8;
+    }
+
+    .terminal-footer-hint {
+      background: #080c14;
+      padding: 6px 14px;
+      font-size: 0.72rem;
+      color: #64748b;
+      border-top: 1px solid #1f293d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copy-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #38bdf8;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.7rem;
+      font-family: var(--font-mono);
+    }
+    .copy-btn:hover { background: #334155; }
+
+    /* Outro Card */
+    .slide-card.outro-card {
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #09101f 80%);
+      color: #ffffff;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 32px 40px;
+    }
+
+    .outro-title {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .outro-quote {
+      font-size: 1.05rem;
+      color: #93c5fd;
+      max-width: 760px;
+      line-height: 1.55;
+      font-style: italic;
+      margin-bottom: 24px;
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      width: 100%;
+      max-width: 820px;
+      margin-bottom: 20px;
+    }
+
+    .contact-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .contact-card:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: #38bdf8;
+    }
+
+    .contact-icon {
+      font-size: 1.6rem;
+    }
+
+    .contact-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .contact-val {
+      font-size: 0.9rem;
+      font-family: var(--font-mono);
+      color: #f8fafc;
+      font-weight: 600;
+    }
+
+    /* Bottom Bar */
+    .bottom-bar {
+      height: 44px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #64748b;
+      font-size: 0.82rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .bottom-bar kbd {
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="top-left-group">
+      <button class="menu-toggle-btn" onclick="toggleSidebar()" title="Buka Daftar Slide (M)">
+        <span>☰</span>
+        <span>Daftar Slide</span>
+      </button>
+      <div class="title">
+        <span>TKJ SMK Wikrama • Bab 1 Sub-Bab 1.1: Arsitektur Kernel & Proses</span>
+        <span class="session-badge" id="session-tag">COVER MODUL</span>
+      </div>
+    </div>
+    <div class="top-controls">
+      <span class="counter-text" id="slide-num">Slide 1 of 50</span>
+      <button class="nav-arrow-btn" onclick="prevSlide()">❮</button>
+      <button class="nav-arrow-btn" onclick="nextSlide()">❯</button>
+    </div>
+  </div>
+
+  <!-- Sidebar Overlay & Drawer -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+  <div class="slide-sidebar" id="slide-sidebar">
+    <div class="sidebar-header">
+      <span>🗂️ Navigasi Daftar 50 Slide</span>
+      <button class="sidebar-close-btn" onclick="toggleSidebar()">✕</button>
+    </div>
+    <div class="sidebar-search-box">
+      <input type="text" class="sidebar-search-input" id="sidebar-filter" placeholder="Cari materi slide..." oninput="filterThumbnails()" />
+    </div>
+    <div class="sidebar-scroll-list" id="thumb-list"></div>
+  </div>
+
+  <!-- Stage Presentation -->
+  <div class="stage" id="deck"></div>
+
+  <!-- Bottom Bar -->
+  <div class="bottom-bar">
+    <span>Navigasi: Tombol <kbd>←</kbd> dan <kbd>→</kbd> | Menu Slide: <kbd>M</kbd> | Terminal: Ketik lalu <kbd>Enter</kbd></span>
+    <span>Teknik Komputer dan Jaringan — SMK Wikrama Bogor</span>
+  </div>
+
+  <script>
+    let currentDir = "~";
+    let cmdHistory = [];
+    let historyIdx = -1;
+
+    // Database 50 Slide Lengkap Sub-Bab 1.1
+    const slidesData = [
+      // SLIDE 1: COVER
+      {
+        isCover: true,
+        program: "Program Keahlian: Teknik Jaringan Komputer dan Telekomunikasi",
+        subprogram: "Konsentrasi Keahlian: Teknik Komputer dan Jaringan",
+        chapter: "Bab 1: Arsitektur OS (Linux & Windows) & CLI",
+        title: "Sub-Bab 1.1: Arsitektur Kernel & Proses",
+        subtitle: "Membedah Arsitektur Linux vs Windows NT, Dual-Mode CPU, Struktur PCB, Siklus Hidup Proses, Daemons vs Services, serta File System EXT4 vs NTFS",
+        teacher: "Ardi Ariansyah, S.Kom., Gr.",
+        certs: "MTCNA, MTCRE, ACTR, JPT, DFA, L1 SOC, EHE",
+        meta1: "Alokasi: 3 Sesi Praktikum",
+        meta2: "Total: 50 Slide Interaktif",
+        terminalCmd: "uname -r && cat /proc/version",
+        terminalOut: "6.8.0-45-generic\nLinux version 6.8.0-45-generic (buildd@lcy02-amd64-080) (x86_64)",
+        sesi: "COVER MODUL"
+      },
+      // SLIDE 2: ROADMAP
+      {
+        cat: "PETA KOMPETENSI",
+        title: "Roadmap Capaian Sub-Bab 1.1",
+        bullets: [
+          "<strong>Sesi 1 (Slide 1–17):</strong> Arsitektur Kernel Linux Monolitik vs Windows NT Hybrid, Cincin Proteksi Hardware (Ring 0 vs Ring 3), dan Syscall Gate.",
+          "<strong>Sesi 2 (Slide 18–34):</strong> Konsep Proses, Layout Virtual Memory, Process Control Block (PCB), Siklus 5-State, Daemons vs Windows Services.",
+          "<strong>Sesi 3 (Slide 35–50):</strong> Sistem Berkas EXT4 (Inode) vs NTFS ($MFT), Integritas Journaling, Ancaman Forensik (ADS & Timestomping)."
+        ],
+        targetCmd: "uname -r",
+        targetHint: "Cek versi rilis kernel Linux yang berjalan dengan perintah: uname -r",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 3
+      {
+        cat: "PENGANTAR SISTEM",
+        title: "Mengapa Ahli Keamanan Siber Wajib Menguasai Kernel?",
+        bullets: [
+          "Kernel adalah inti pengendali yang memiliki akses hardware tanpa batas.",
+          "Jika hacker berhasil menyusup ke Ring 0 (Kernel Space), seluruh sistem antivirus dan EDR dapat dibungkam.",
+          "Seluruh isolasi memori, izin berkas, dan filter firewall bergantung pada integritas kernel.",
+          "Memahami kernel membantu kita mengenali teknik serangan Rootkit dan Privilege Escalation."
+        ],
+        targetCmd: "cat /proc/version",
+        targetHint: "Lihat rincian kompilasi kernel sistem dengan: cat /proc/version",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 4
+      {
+        cat: "PROTEKSI HARDWARE",
+        title: "Dual-Mode Operation: Ring 3 vs Ring 0",
+        bullets: [
+          "<strong>User Mode (Ring 3):</strong> Ruang eksekusi aplikasi biasa (browser, editor, game). Akses hardware dibatasi ketat.",
+          "<strong>Kernel Mode (Ring 0):</strong> Ruang eksekusi driver dan inti kernel. Berjalan dengan hak istimewa instruksi CPU penuh.",
+          "Isolasi ini mencegah aplikasi pengguna yang rusak menyebabkan crash pada seluruh sistem fisik.",
+          "Setiap permintaan akses RAM fisik atau jaringan harus melalui gerbang <strong>System Call</strong>."
+        ],
+        targetCmd: "id",
+        targetHint: "Periksa identitas dan tingkat hak akses sesi terminal Anda dengan: id",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 5
+      {
+        cat: "GERBANG SISTEM",
+        title: "Mekanisme System Call (Syscall)",
+        bullets: [
+          "Aplikasi Ring 3 tidak diizinkan menyentuh hard disk secara langsung.",
+          "Program memanggil API pustaka (misal `write()` atau `open()`).",
+          "CPU menerima instruksi software interrupt, mengubah mode eksekusi dari Ring 3 ke Ring 0.",
+          "Kernel memverifikasi kredensial pemanggil, mengeksekusi operasi hardware, lalu kembali ke Ring 3."
+        ],
+        targetCmd: "cat /proc/sys/kernel/osrelease",
+        targetHint: "Baca nilai rilis kernel dari virtual procfs: cat /proc/sys/kernel/osrelease",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 6
+      {
+        cat: "ARSITEKTUR LINUX",
+        title: "Linux: Monolithic Modular Kernel",
+        bullets: [
+          "Seluruh fungsi esensial (Virtual Memory, Scheduler, IPC, Network Stack) berjalan di dalam satu ruang memori Ring 0 yang sama.",
+          "<strong>Keunggulan:</strong> Kinerja komunikasi antar-komponen sangat cepat tanpa latensi pesan.",
+          "<strong>Risiko Siber:</strong> Kerusakan pada satu komponen driver dapat memicu kegagalan sistem total (*Kernel Panic*).",
+          "Mendukung <strong>LKM (Loadable Kernel Modules)</strong> untuk memuat driver secara dinamis tanpa reboot."
+        ],
+        targetCmd: "lsmod",
+        targetHint: "Tampilkan modul kernel yang sedang aktif dimuat dengan: lsmod",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 7
+      {
+        cat: "ARSITEKTUR WINDOWS",
+        title: "Windows NT: Hybrid Kernel Architecture",
+        bullets: [
+          "Menggabungkan kecepatan monolitik dengan arsitektur modular microkernel.",
+          "<strong>HAL (Hardware Abstraction Layer):</strong> Mengisolasi kernel dari variasi chipset motherboard.",
+          "<strong>Executive Services:</strong> Modul memori, keamanan (SRM), dan I/O manajer.",
+          "Kerusakan driver hardware pada Windows NT menyebabkan layar biru (*Blue Screen of Death / BSOD*)."
+        ],
+        targetCmd: "lsmod | grep net",
+        targetHint: "Filter modul kernel jaringan yang aktif dengan: lsmod | grep net",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 8
+      {
+        cat: "MATRIKS EVALUASI",
+        title: "Tabel Komparasi Teknis: Linux vs Windows NT",
+        bullets: [
+          "<strong>Model:</strong> Linux = Monolitik Modular | Windows NT = Hibrida (Hybrid).",
+          "<strong>Driver Crash:</strong> Linux = Kernel Panic | Windows = BSOD (Blue Screen).",
+          "<strong>Modularitas:</strong> Linux = Berkas `.ko` via LKM | Windows = Berkas `.sys` via SCM.",
+          "<strong>Proteksi Kernel:</strong> Linux = Module Signing | Windows = PatchGuard (KPP) & VBS."
+        ],
+        targetCmd: "cat /proc/modules",
+        targetHint: "Lihat tabel alokasi memori modul kernel mentah dengan: cat /proc/modules",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 9
+      {
+        cat: "THREAT ANALYSIS",
+        title: "Vektor Serangan: Kernel Rootkits",
+        bullets: [
+          "Rootkit kernel adalah malware yang menyusup dan beroperasi langsung di level Ring 0.",
+          "Dapat memodifikasi tabel system call (`sys_call_table`) untuk menyembunyikan berkas jahat.",
+          "Jika analis mengetik `ps` atau `ls`, kernel yang disusupi akan menyaring nama proses malware agar tidak muncul.",
+          "Mitigasi modern: Mengaktifkan <strong>Secure Boot</strong> dan verifikasi tanda tangan digital modul kernel."
+        ],
+        targetCmd: "ls /proc/sys/kernel",
+        targetHint: "Periksa daftar parameter keamanan kernel dengan: ls /proc/sys/kernel",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 10
+      {
+        cat: "PRAKTIK LAB SESI 1",
+        title: "Lab 1: Eksplorasi Konfigurasi Kernel di /proc",
+        bullets: [
+          "Masuk ke pseudo-filesystem <code>/proc</code> yang merupakan cerminan memori kernel di RAM.",
+          "Periksa jenis CPU yang dikenali kernel dengan membaca <code>/proc/cpuinfo</code>.",
+          "Periksa alokasi RAM yang dikelola kernel melalui <code>/proc/meminfo</code>.",
+          "Perhatikan bagaimana seluruh parameter sistem dapat dibaca layaknya berkas teks biasa."
+        ],
+        targetCmd: "cat /proc/cpuinfo",
+        targetHint: "Tampilkan identitas prosesor yang dikelola kernel: cat /proc/cpuinfo",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 11
+      {
+        cat: "ANALISIS KAPASITAS",
+        title: "Memeriksa Alokasi RAM: /proc/meminfo",
+        bullets: [
+          "Kernel bertugas membagi jatah memori antara aplikasi Ring 3 dan kebutuhan internal Ring 0.",
+          "<code>MemTotal</code>: Total memori fisik yang tersedia.",
+          "<code>MemAvailable</code>: Estimasi kapasitas RAM yang dapat digunakan tanpa memicu swapping.",
+          "Serangan memori (*Memory Exhaustion*) dapat memicu mekanisme kernel **OOM (Out Of Memory) Killer**."
+        ],
+        targetCmd: "cat /proc/meminfo",
+        targetHint: "Periksa statistik penggunaan memori kernel dengan: cat /proc/meminfo",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 12
+      {
+        cat: "SISTEM PENYIMPANAN",
+        title: "Deteksi Partisi Penyimpanan via Kernel",
+        bullets: [
+          "Kernel mendeteksi controller hard drive dan memetakannya ke dalam <code>/proc/partitions</code>.",
+          "Setiap blok partisi memiliki nomor mayor (tipe driver) dan minor (nomor unit partisi).",
+          "Informasi ini dipakai untuk mounting partisi berkas ke dalam hirarki direktori tunggal.",
+          "Penting dalam digital forensik untuk mendeteksi partisi tersembunyi (*Hidden Partitions*)."
+        ],
+        targetCmd: "cat /proc/partitions",
+        targetHint: "Lihat tabel partisi fisik yang didaftarkan kernel: cat /proc/partitions",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 13
+      {
+        cat: "PENGERASAN SISTEM",
+        title: "Pengerasan Kernel melalui Parameter sysctl",
+        bullets: [
+          "Administrator dapat mengunci perilaku kernel saat runtime melalui konfigurasi <code>sysctl</code>.",
+          "Contoh: Menonaktifkan IP Forwarding untuk mencegah server disalahgunakan sebagai router serangan.",
+          "Mengaktifkan proteksi SYN Cookies untuk memitigasi serangan jaringan SYN Flood DoS.",
+          "Mengaktifkan ASLR (*Address Space Layout Randomization*) untuk mengacak alamat memori proses."
+        ],
+        targetCmd: "cat /proc/sys/net/ipv4/ip_forward",
+        targetHint: "Periksa status penerusan paket IP kernel: cat /proc/sys/net/ipv4/ip_forward",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 14
+      {
+        cat: "AUDIT PERISTIWA",
+        title: "Membaca Riwayat Pesan Kernel: dmesg",
+        bullets: [
+          "Kernel menyimpan catatan log peristiwa hardware dan driver di dalam buffer memori (*Ring Buffer*).",
+          "Perintah <code>dmesg</code> digunakan untuk mencetak seluruh riwayat buffer tersebut.",
+          "Sangat berguna untuk mendeteksi penancapan flashdisk mencurigakan (USB Drops) secara real-time.",
+          "Mendeteksi adanya modul kernel ilegal yang gagal dimuat oleh sistem."
+        ],
+        targetCmd: "dmesg",
+        targetHint: "Cetak ringkasan catatan bootstrap kernel sistem dengan: dmesg",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 15
+      {
+        cat: "EVALUASI SESI 1",
+        title: "Cek Pemahaman: Arsitektur Kernel & Proteksi",
+        bullets: [
+          "<strong>Pertanyaan 1:</strong> Berada pada tingkat cincin (Ring) keberapakah aplikasi web browser berjalan?",
+          "<strong>Pertanyaan 2:</strong> Apa yang membedakan dampak kerusakan driver pada Linux dibanding Windows NT?",
+          "<strong>Pertanyaan 3:</strong> Apa nama mekanisme perangkat keras yang menjembatani transisi User Mode ke Kernel Mode?"
+        ],
+        targetCmd: "uname -s",
+        targetHint: "Tampilkan nama jenis kernel sistem operasi aktif dengan: uname -s",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 16
+      {
+        cat: "RINGKASAN SESI 1",
+        title: "Rangkuman Kunci Arsitektur Kernel",
+        bullets: [
+          "Pemisahan Ring 0 (Kernel) dan Ring 3 (User) adalah pilar pertahanan fundamental hardware modern.",
+          "System call adalah gerbang terverifikasi untuk meminta layanan kernel tanpa mengorbankan isolasi.",
+          "Linux menggunakan arsitektur monolitik modular (LKM), sedangkan Windows NT menerapkan arsitektur hibrida.",
+          "Virtual filesystem `/proc` memberikan visibilitas langsung ke memori internal kernel tanpa alat eksternal."
+        ],
+        targetCmd: "clear",
+        targetHint: "Bersihkan layar simulasi Anda untuk melanjutkan ke materi proses: clear",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+      // SLIDE 17
+      {
+        cat: "JEMBATAN MATERI",
+        title: "Menghubungkan Kernel dengan Entitas Proses",
+        bullets: [
+          "Kita telah memahami bagaimana kernel berkuasa di memori Ring 0.",
+          "Sekarang, bagaimana kernel mengatur ribuan program yang berjalan bersamaan?",
+          "Setiap program yang dieksekusi akan bertransformasi menjadi **Proses** yang memiliki identitas unik.",
+          "Sesi 2 akan membedah siklus hidup proses, Process Control Block (PCB), hingga background service."
+        ],
+        targetCmd: "ps",
+        targetHint: "Tampilkan proses terminal Anda yang sedang berjalan dengan: ps",
+        sesi: "SESI 1: ARSITEKTUR KERNEL"
+      },
+
+      // SESI 2: MANAJEMEN PROSES & LAYANAN LATAR BELAKANG
+      {
+        cat: "PENGANTAR SESI 2",
+        title: "Bagian 2: Manajemen Proses & Background Services",
+        bullets: [
+          "<strong>Program (Entitas Pasif):</strong> File biner eksekutabel yang tersimpan diam di hard disk.",
+          "<strong>Proses (Entitas Aktif):</strong> Program yang telah dimuat ke RAM dan dialokasikan CPU cycle.",
+          "Setiap proses memiliki identitas unik: <strong>PID (Process ID)</strong> dan <strong>PPID (Parent PID)</strong>.",
+          "Analis siber memburu malware dengan menganalisis hierarki silsilah proses (*Process Tree*)."
+        ],
+        targetCmd: "ps aux",
+        targetHint: "Tampilkan seluruh proses aktif di sistem secara komprehensif: ps aux",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 19
+      {
+        cat: "STRUKTUR MEMORI",
+        title: "Anatomi Ruang Memori Proses (Virtual Address Space)",
+        bullets: [
+          "<strong>Stack:</strong> Menyimpan variabel lokal dan return address pemanggilan fungsi (tumbuh ke bawah).",
+          "<strong>Heap:</strong> Alokasi memori dinamis saat runtime melalui fungsi `malloc()` (tumbuh ke atas).",
+          "<strong>Data Segment:</strong> Menyimpan variabel global dan static yang telah diinisialisasi.",
+          "<strong>Text / Code:</strong> Instruksi biner CPU program (bersifat Read-Only agar tidak bisa dimanipulasi)."
+        ],
+        targetCmd: "cat /proc/1/cmdline",
+        targetHint: "Periksa baris perintah pembentuk proses induk PID 1: cat /proc/1/cmdline",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 20
+      {
+        cat: "KERENTANAN SIBER",
+        title: "Vektor Serangan: Buffer Overflow pada Stack",
+        bullets: [
+          "Jika program C/C++ tidak memvalidasi panjang input pengguna, data dapat meluap melewati batas array.",
+          "Input berlebih akan menimpa alokasi <strong>Stack</strong> dan merebut nilai *Return Pointer (EIP/RIP)*.",
+          "Penyerang mengarahkan eksekusi ke kode jahat (*Shellcode*) yang diselipkan di memori.",
+          "Mitigasi modern: Menerapkan proteksi <strong>Stack Canaries</strong>, <strong>ASLR</strong>, dan <strong>NX-Bit (No-Execute)</strong>."
+        ],
+        targetCmd: "cat /proc/sys/kernel/randomize_va_space",
+        targetHint: "Periksa status proteksi ASLR kernel (nilai 2 = Aktif Penuh): cat /proc/sys/kernel/randomize_va_space",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 21
+      {
+        cat: "METADATA KERNEL",
+        title: "Process Control Block (PCB / task_struct)",
+        bullets: [
+          "Setiap proses dikendalikan oleh struktur data di kernel bernama <strong>PCB</strong> (di Linux: `struct task_struct`).",
+          "Menyimpan nomor PID, PPID, status eksekusi, hak kredensial user (UID/GID), dan tabel file descriptor.",
+          "Menyimpan konteks register CPU saat proses dihentikan sementara (*Context Switching*).",
+          "Pada Windows, token hak akses disimpan di struktur `EPROCESS` (sasaran serangan Token Impersonation)."
+        ],
+        targetCmd: "ps -ef",
+        targetHint: "Tampilkan tabel proses lengkap dengan kolom PPID: ps -ef",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 22
+      {
+        cat: "SIKLUS EKSEKUSI",
+        title: "Siklus Hidup Proses (5-State Model)",
+        bullets: [
+          "<strong>1. New:</strong> Proses baru dialokasikan oleh kernel.",
+          "<strong>2. Ready:</strong> Siap dieksekusi, menunggu giliran scheduler CPU di antrean.",
+          "<strong>3. Running:</strong> Instruksi sedang dijalankan oleh core prosesor fisik.",
+          "<strong>4. Waiting / Blocked:</strong> Menunggu respon I/O (akses disk atau paket jaringan).",
+          "<strong>5. Terminated:</strong> Proses selesai dan memorinya dibersihkan oleh sistem."
+        ],
+        targetCmd: "pstree",
+        targetHint: "Visualisasikan pohon silsilah proses sistem dengan: pstree",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 23
+      {
+        cat: "MEKANISME SISTEM",
+        title: "Penciptaan Proses: fork() & execve() di Linux",
+        bullets: [
+          "Proses baru di Linux tidak dibuat dari nol, melainkan melalui teknik **Fork-Exec**.",
+          "<code>fork()</code>: Proses induk menduplikasi dirinya secara persis menghasilkan proses anak.",
+          "<code>execve()</code>: Proses anak mengganti ruang memori duplikatnya dengan program biner baru.",
+          "Induk utama dari seluruh proses di Linux adalah **PID 1 (systemd/init)**."
+        ],
+        targetCmd: "pstree -p",
+        targetHint: "Tampilkan hierarki proses lengkap beserta nomor PID-nya: pstree -p",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 24
+      {
+        cat: "KOMPARASI WINDOWS",
+        title: "Penciptaan Proses Windows: CreateProcess()",
+        bullets: [
+          "Windows tidak menggunakan fork-exec, melainkan memanggil Windows API <code>CreateProcess()</code>.",
+          "Memuat berkas PE (.exe), membuat thread awal, dan mengalokasikan virtual address space secara instan.",
+          "Proses sistem inti Windows: `smss.exe` (Session Manager), `wininit.exe`, `services.exe`, dan `lsass.exe`.",
+          "Mengetahui induk proses yang sah membantu analis mendeteksi malware yang menyamar (*Process Masquerading*)."
+        ],
+        targetCmd: "ps -o pid,ppid,cmd",
+        targetHint: "Filter hanya kolom PID, PPID, dan nama perintah proses: ps -o pid,ppid,cmd",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 25
+      {
+        cat: "ANOMALI PROSES",
+        title: "Proses Zombie (defunct): Karakteristik & Bahayanya",
+        bullets: [
+          "Proses anak yang telah selesai dieksekusi, namun induknya belum memanggil fungsi <code>wait()</code>.",
+          "Memorinya sudah dibebaskan, tetapi entri nomor PID-nya masih tertinggal di tabel proses kernel.",
+          "Dilambangkan dengan kode status <strong>Z</strong> atau label <code>[defunct]</code>.",
+          "<strong>Bahaya:</strong> Penumpukan zombie process dapat memicu serangan DoS kehabisan slot PID (*PID Exhaustion*)."
+        ],
+        targetCmd: "ps aux | grep defunct",
+        targetHint: "Cari apakah ada proses zombie di sistem lab dengan: ps aux | grep defunct",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 26
+      {
+        cat: "ANOMALI PROSES",
+        title: "Proses Orphan: Anak yang Kehilangan Induk",
+        bullets: [
+          "Proses anak yang proses induk aslinya telah mati/terhenti lebih dahulu.",
+          "Proses orphan tidak boleh dibiarkan liar tanpa pengawasan sistem.",
+          "Secara otomatis, kernel akan mengadopsi proses orphan ini kepada <strong>PID 1 (systemd)</strong> (*Re-parenting*).",
+          "PID 1 akan bertugas memanggil `wait()` saat proses anak tersebut selesai agar tidak menjadi zombie permanen."
+        ],
+        targetCmd: "cat /proc/loadavg",
+        targetHint: "Periksa rata-rata beban antrean proses CPU dengan: cat /proc/loadavg",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 27
+      {
+        cat: "MONITORING PROSES",
+        title: "Pemantauan Proses Real-Time: Utilitas top",
+        bullets: [
+          "Perintah <code>top</code> menampilkan monitor penggunaan CPU, RAM, dan status proses secara dinamis.",
+          "Kolom `%CPU` dan `%MEM`: Mengidentifikasi aplikasi yang mengalami kebocoran memori atau disusupi cryptominer.",
+          "Kolom `TIME+`: Total waktu komputasi CPU yang dihabiskan oleh proses tersebut.",
+          "Tekan `q` di terminal produksi untuk keluar dari antarmuka pemantauan top."
+        ],
+        targetCmd: "top -b -n 1",
+        targetHint: "Ambil cuplikan tabel proses top mode batch dengan: top -b -n 1",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 28
+      {
+        cat: "KONTROL PROSES",
+        title: "Terminasi Proses: Sinyal kill & Sinyal 9",
+        bullets: [
+          "Perintah <code>kill</code> tidak serta-merta membunuh, melainkan mengirimkan sinyal IPC ke proses.",
+          "<code>SIGTERM (Sinyal 15):</code> Permintaan sopan agar proses menutup koneksi berkas dan berhenti rapi.",
+          "<code>SIGKILL (Sinyal 9):</code> Perintah paksa langsung ke kernel untuk mematikan proses saat itu juga.",
+          "Proses yang disusupi malware atau mengalami freeze wajib dimatikan paksa dengan sinyal 9 (`kill -9 [PID]`)."
+        ],
+        targetCmd: "kill -9 9999",
+        targetHint: "Simulasikan perintah kill paksa sinyal 9: kill -9 9999",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 29
+      {
+        cat: "BACKGROUND SERVICES",
+        title: "Linux Daemons: Layanan di Balik Layar",
+        bullets: [
+          "<strong>Daemon:</strong> Proses latar belakang yang berjalan mandiri tanpa terhubung ke terminal interaktif pengguna.",
+          "Secara konvensi namanya diakhiri dengan huruf 'd' (contoh: `sshd`, `systemd`, `cron`, `nginx`).",
+          "Dikelola secara terpusat oleh init system <strong>systemd</strong> menggunakan perintah `systemctl`.",
+          "Target serangan persisten: Hacker sering mendaftarkan daemon palsu agar malware otomatis berjalan saat boot."
+        ],
+        targetCmd: "systemctl status sshd",
+        targetHint: "Periksa status daemon SSH server dengan: systemctl status sshd",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 30
+      {
+        cat: "BACKGROUND SERVICES",
+        title: "Windows Services & Akun Privilese",
+        bullets: [
+          "Setara dengan daemon di Linux; dikelola oleh <strong>Service Control Manager (services.exe)</strong>.",
+          "Sering kali berjalan di bawah akun dengan privilese mutlak: <strong>NT AUTHORITY\\SYSTEM</strong>.",
+          "Jika servis yang berjalan di bawah SYSTEM memiliki kerentanan, penyerang mendapatkan kendali penuh atas Windows.",
+          "Dapat diaudit melalui konsol `services.msc` atau perintah PowerShell `Get-Service`."
+        ],
+        targetCmd: "systemctl list-units --type=service",
+        targetHint: "Tampilkan daftar service yang aktif di sistem: systemctl list-units --type=service",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 31
+      {
+        cat: "KERENTANAN WINDOWS",
+        title: "Eksploitasi Celah: Unquoted Service Path",
+        bullets: [
+          "Terjadi jika path eksekusi servis Windows memiliki spasi tetapi tidak diapit tanda kutip ganda.",
+          "Contoh path: `C:\\Program Files\\VPN Client\\service.exe`.",
+          "Windows akan mencoba mencari dan menjalankan `C:\\Program.exe` terlebih dahulu sebelum path lengkapnya!",
+          "Penyerang lokal dapat menaruh malware bernama `Program.exe` untuk meraih hak eskalasi SYSTEM."
+        ],
+        targetCmd: "ps -eo pid,user,args | head -n 5",
+        targetHint: "Inspeksi kepemilikan user dan argumen path proses: ps -eo pid,user,args | head -n 5",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 32
+      {
+        cat: "PRAKTIK LAB SESI 2",
+        title: "Lab 2: Investigasi Proses Tersembunyi di /proc",
+        bullets: [
+          "Setiap proses yang tampak pada perintah `ps` memiliki direktori representasinya di `/proc/[PID]/`.",
+          "Jika ada rootkit yang menyembunyikan PID dari perintah `ps`, folder di `/proc` sering kali tetap ada.",
+          "Membaca berkas <code>/proc/[PID]/cmdline</code> untuk mengetahui baris perintah asli malware.",
+          "Membaca symlink <code>/proc/[PID]/exe</code> untuk mengetahui lokasi biner fisik di disk."
+        ],
+        targetCmd: "ls -l /proc/1/fd",
+        targetHint: "Inspeksi file descriptor proses PID 1: ls -l /proc/1/fd",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 33
+      {
+        cat: "EVALUASI SESI 2",
+        title: "Cek Pemahaman: Manajemen Proses",
+        bullets: [
+          "<strong>Pertanyaan 1:</strong> Apa perbedaan antara nomor PID dan PPID pada struktur proses?",
+          "<strong>Pertanyaan 2:</strong> Mengapa penumpukan proses berstatus Zombie berbahaya bagi stabilitas OS?",
+          "<strong>Pertanyaan 3:</strong> Sinyal terminasi bernomor berapakah yang memaksa proses berhenti secara mutlak?"
+        ],
+        targetCmd: "kill -l",
+        targetHint: "Tampilkan daftar nomor sinyal proses lengkap dengan: kill -l",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+      // SLIDE 34
+      {
+        cat: "RINGKASAN SESI 2",
+        title: "Rangkuman Kunci Manajemen Proses",
+        bullets: [
+          "Proses adalah program aktif di memori dengan segmen Text, Data, Heap, dan Stack.",
+          "PCB menyimpan seluruh data kredensial keamanan dan file descriptor proses.",
+          "Proses induk membuat anak melalui mekanisme Fork-Exec di Linux dan CreateProcess di Windows.",
+          "Pengawasan terhadap daemon dan service mutlak diperlukan untuk menutup persistensi malware."
+        ],
+        targetCmd: "clear",
+        targetHint: "Bersihkan layar terminal Anda untuk melanjutkan ke materi File System: clear",
+        sesi: "SESI 2: MANAJEMEN PROSES"
+      },
+
+      // SESI 3: FILE SYSTEM, INTEGRITAS & FORENSIK ENDPOINT
+      {
+        cat: "PENGANTAR SESI 3",
+        title: "Bagian 3: File System (EXT4 vs NTFS) & Forensik",
+        bullets: [
+          "Hard disk hanya mengenal blok data biner 0 dan 1 mentah.",
+          "<strong>File System:</strong> Struktur logika indeks yang mengatur penamaan, metadata, dan hak akses berkas.",
+          "Dua standar dominan industri sistem operasi modern: <strong>EXT4 (Linux)</strong> dan <strong>NTFS (Windows)</strong>.",
+          "Analis forensik siber bertumpu pada struktur metadata sistem berkas untuk melacak bukti digital."
+        ],
+        targetCmd: "df -T",
+        targetHint: "Periksa jenis file system yang terpasang pada partisi sistem: df -T",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 36
+      {
+        cat: "ARSITEKTUR EXT4",
+        title: "Linux EXT4: Pemisahan Data & Inode",
+        bullets: [
+          "Standar de-facto distribusi Linux; memisahkan nama berkas dari konten fisiknya.",
+          "Jantung dari EXT4 adalah <strong>Inode (Index Node)</strong> berukuran 256 byte.",
+          "<strong>Yang Disimpan di Inode:</strong> Nomor Inode, ukuran berkas, izin hak akses (chmod/chown), timestamp (MAC), dan pointer ke blok disk fisik.",
+          "<strong>Fakta Penting:</strong> Nama file TIDAK disimpan di Inode, melainkan di blok data direktori induknya!"
+        ],
+        targetCmd: "ls -i",
+        targetHint: "Tampilkan nomor Inode unik tiap berkas dengan: ls -i",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 37
+      {
+        cat: "ANALISIS INODE",
+        title: "Inspeksi Metadata Berkas: Utilitas stat",
+        bullets: [
+          "Perintah <code>stat</code> membongkar seluruh informasi metadata Inode secara terperinci.",
+          "Menampilkan tiga stempel waktu utama: <strong>Access (atime)</strong>, <strong>Modify (mtime)</strong>, dan <strong>Change (ctime)</strong>.",
+          "Menampilkan jumlah hard link yang merujuk ke nomor Inode tersebut.",
+          "Instrumen wajib analis Incident Response saat memverifikasi integritas berkas bukti."
+        ],
+        targetCmd: "stat /etc/passwd",
+        targetHint: "Bongkar metadata Inode berkas akun sistem dengan: stat /etc/passwd",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 38
+      {
+        cat: "ARSITEKTUR NTFS",
+        title: "Windows NTFS: Master File Table ($MFT)",
+        bullets: [
+          "Filosofi NTFS: <strong>Semua hal di dalam partisi adalah berkas</strong>, termasuk metadata sistem itu sendiri.",
+          "<strong>$MFT (Master File Table):</strong> Database relasional terpusat berisi record 1024-byte untuk setiap berkas di drive.",
+          "Menyimpan atribut standar: `$STANDARD_INFORMATION`, `$FILE_NAME`, `$DATA`, dan `$SECURITY_DESCRIPTOR`.",
+          "Jika berkas sangat kecil (&lt; 700 byte), kontennya disimpan langsung di dalam record MFT (*Resident Data*)."
+        ],
+        targetCmd: "df -h",
+        targetHint: "Tampilkan kapasitas penyimpanan dalam unit yang mudah dibaca: df -h",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 39
+      {
+        cat: "INTEGRITAS DATA",
+        title: "Mekanisme Journaling: Anti-Kerusakan Data",
+        bullets: [
+          "Jika komputer tiba-tiba kehilangan daya listrik saat proses penulisan berkas, sistem berkas konvensional bisa korup.",
+          "<strong>Journaling:</strong> Mencatat 'niat' perubahan metadata ke area log khusus sebelum menulis data fisik ke partisi.",
+          "Jika terjadi crash mendadak, saat reboot kernel hanya perlu membaca log jurnal untuk memulihkan konsistensi (*Crash Recovery*).",
+          "Linux EXT4 menggunakan modul driver jurnal kernel <strong>JBD2 (Journaling Block Device 2)</strong>."
+        ],
+        targetCmd: "lsmod | grep jbd",
+        targetHint: "Cek keberadaan modul driver journaling pada kernel: lsmod | grep jbd",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 40
+      {
+        cat: "INTEGRITAS DATA",
+        title: "Tiga Mode Journaling pada EXT4",
+        bullets: [
+          "<strong>Journal (Paling Aman):</strong> Metadata dan data konten berkas ditulis ke jurnal terlebih dahulu sebelum ke partisi fisik.",
+          "<strong>Ordered (Default):</strong> Data konten ditulis langsung ke disk, baru metadata dicatat ke jurnal.",
+          "<strong>Writeback (Paling Cepat):</strong> Hanya metadata yang dicatat ke jurnal tanpa jaminan urutan data konten.",
+          "Server database perbankan dan data sensitif sering dikonfigurasi pada mode Journal untuk keandalan maksimal."
+        ],
+        targetCmd: "mount | grep ext4",
+        targetHint: "Periksa opsi mount partisi EXT4 yang aktif dengan: mount | grep ext4",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 41
+      {
+        cat: "INTEGRITAS WINDOWS",
+        title: "Integritas Transaksi NTFS: $LogFile & $UsnJrnl",
+        bullets: [
+          "NTFS mengandalkan berkas metadata sistem <code>$LogFile</code> untuk mencatat transaksi redo/undo metadata.",
+          "<code>$UsnJrnl (Update Sequence Number Journal):</code> Merekam setiap perubahan berkas yang terjadi di drive secara kronologis.",
+          "<strong>Signifikansi Forensik:</strong> Meskipun peretas telah menghapus malware, rekaman aktivitasnya di `$UsnJrnl` tetap tertinggal.",
+          "Analis DFIR mengekstrak `$UsnJrnl` untuk merekonstruksi timeline penyerangan secara menit-demi-menit."
+        ],
+        targetCmd: "ls -la /",
+        targetHint: "Periksa struktur direktori tingkat atas dari akar partisi: ls -la /",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 42
+      {
+        cat: "VEKTOR ANCAMAN",
+        title: "Celah Forensik: NTFS Alternate Data Streams (ADS)",
+        bullets: [
+          "NTFS mengizinkan satu berkas memiliki lebih dari satu aliran data (*Streams*).",
+          "Aliran utama tidak bernama (konten normal), namun peretas dapat menyembunyikan payload berbahaya di aliran samping!",
+          "Contoh injeksi malware: <code>type malware.exe &gt; normal.txt:hidden.exe</code>.",
+          "Berkas `normal.txt` tetap tampak normal dan berukuran kecil di Windows Explorer, namun malware tersimpan di dalamnya!"
+        ],
+        targetCmd: "file /bin/bash",
+        targetHint: "Periksa tipe format biner eksekutabel dengan: file /bin/bash",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 43
+      {
+        cat: "DETEKSI SIBER",
+        title: "Deteksi Alternate Data Streams pada Windows",
+        bullets: [
+          "Gunakan perintah Command Prompt dengan parameter <code>dir /R</code> untuk menyingkap seluruh stream tersembunyi.",
+          "PowerShell cmdlet: <code>Get-Item -Stream * [nama_berkas]</code>.",
+          "Sistem Linux EXT4 secara arsitektur tidak rentan terhadap ADS karena tidak mendukung multi-data stream pada Inode.",
+          "Mengetahui celah ADS mutlak dikuasai untuk perburuan ancaman pada sistem operasi Windows."
+        ],
+        targetCmd: "file /etc/passwd",
+        targetHint: "Pastikan berkas teks akun terdeteksi sebagai ASCII text: file /etc/passwd",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 44
+      {
+        cat: "ANTI-FORENSIK",
+        title: "Teknik Manipulasi Jejak: Timestomping",
+        bullets: [
+          "<strong>Timestomping:</strong> Teknik peretas mengubah atribut waktu pembuatan berkas malware agar sama persis dengan berkas sistem.",
+          "Tujuannya mengecoh analis agar malware tidak terjaring saat penyortiran berkas berdasarkan waktu terbaru.",
+          "<strong>Cara Analis Membongkarnya di NTFS:</strong>",
+          "Peretas biasanya hanya mengubah atribut `$STANDARD_INFORMATION`. Atribut waktu pada `$FILE_NAME` hanya bisa diubah oleh kernel!",
+          "Ketidakcocokan kedua timestamp ini membuktikan adanya indikasi manipulasi bukti digital (*Timestomping Detected*)."
+        ],
+        targetCmd: "stat /bin/ls",
+        targetHint: "Periksa timestamp lengkap biner sistem dengan: stat /bin/ls",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 45
+      {
+        cat: "MATRIKS KOMPARASI",
+        title: "Tabel Evaluasi Menyeluruh: EXT4 vs NTFS",
+        bullets: [
+          "<strong>Struktur Metadata:</strong> EXT4 = Inode Table | NTFS = Master File Table ($MFT).",
+          "<strong>Mekanisme Journal:</strong> EXT4 = JBD2 Driver | NTFS = $LogFile & $UsnJrnl.",
+          "<strong>Model Izin Akses:</strong> EXT4 = POSIX Mode (rwx) & ACL | NTFS = Security Descriptor (DACL).",
+          "<strong>Ketahanan Anti-Forensik:</strong> EXT4 = Bebas celah ADS | NTFS = Rentan ADS jika tidak diaudit."
+        ],
+        targetCmd: "mount",
+        targetHint: "Tampilkan seluruh konfigurasi mounting partisi aktif: mount",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 46
+      {
+        cat: "STUDI KASUS",
+        title: "Studi Kasus Forensik: Investigasi Anomali Berkas",
+        bullets: [
+          "Analis menemukan proses mencurigakan mengonsumsi resource CPU tinggi.",
+          "Setelah diperiksa melalui `/proc/[PID]/exe`, berkas biner merujuk ke folder `/tmp`.",
+          "Pemeriksaan nomor Inode via `ls -i` dan perintah `stat` mengungkap bahwa berkas baru dibuat 10 menit yang lalu.",
+          "Langkah mitigasi: Hentikan proses via `kill -9`, amankan hash SHA-256 berkas sampel, lalu bersihkan sistem."
+        ],
+        targetCmd: "sha256sum /bin/ls",
+        targetHint: "Hitung nilai hash SHA-256 integritas berkas biner: sha256sum /bin/ls",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 47
+      {
+        cat: "PROYEK KELAS",
+        title: "Panduan Tugas Mandiri Sub-Bab 1.1",
+        bullets: [
+          "1. Jalankan terminal Ubuntu/Debian lab dan dokumentasikan versi kernel aktif menggunakan <code>uname -a</code>.",
+          "2. Buka berkas <code>/proc/cpuinfo</code> dan catat arsitektur instruksi prosesor.",
+          "3. Tampilkan 5 proses pemakan memori terbesar menggunakan kombinasi <code>ps aux --sort=-%mem</code>.",
+          "4. Buat berkas uji coba, lalu periksa detail Inode dan timestamp-nya menggunakan perintah <code>stat</code>."
+        ],
+        targetCmd: "uname -a",
+        targetHint: "Verifikasi spesifikasi mesin lab Anda: uname -a",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 48
+      {
+        cat: "EVALUASI AKHIR",
+        title: "Cek Pemahaman Akhir Sub-Bab 1.1",
+        bullets: [
+          "<strong>Soal 1:</strong> Komponen apakah pada kernel Linux yang memungkinkan penambahan driver tanpa restart?",
+          "<strong>Soal 2:</strong> Di manakah nama sebuah berkas disimpan pada sistem berkas EXT4?",
+          "<strong>Soal 3:</strong> Apa nama database relasional terpusat yang menjadi jantung dari sistem berkas NTFS Windows?"
+        ],
+        targetCmd: "lsmod | head -n 5",
+        targetHint: "Ambil 5 modul driver kernel teratas dengan: lsmod | head -n 5",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 49
+      {
+        cat: "RANGKUMAN FINAL",
+        title: "Rangkuman Menyeluruh Sub-Bab 1.1",
+        bullets: [
+          "Kernel dan cincin proteksi CPU (Ring 0 vs Ring 3) adalah benteng isolasi hardware paling kritis.",
+          "Proses adalah entitas aktif memori yang memiliki alokasi Stack/Heap serta metadata PCB tersendiri.",
+          "Daemons dan services adalah tulang punggung layanan background yang harus diawasi persistensinya.",
+          "Sistem berkas EXT4 dan NTFS memiliki arsitektur metadata jurnal yang menjadi sumber barang bukti digital forensik."
+        ],
+        targetCmd: "echo \"Sub-Bab 1.1 Tuntas!\"",
+        targetHint: "Rayakan ketuntasan materi dengan mengetik: echo \"Sub-Bab 1.1 Tuntas!\"",
+        sesi: "SESI 3: FILE SYSTEM & FORENSIK"
+      },
+      // SLIDE 50: SLIDE PENUTUP & KONTAK RESMI
+      {
+        isOutro: true,
+        title: "Terima Kasih & Tetap Semangat Belajar!",
+        quote: "“Keahlian menguasai arsitektur kernel dan proses adalah fondasi mutlak seorang analis keamanan siber. Siapa yang memahami bagaimana sistem berpikir di memori terdalam, dialah yang mampu melindunginya dari kehancuran.”",
+        email: "tkj@smkwikrama.sch.id",
+        instagram: "@tkjwikrama74",
+        website: "www.smkwikrama.sch.id",
+        sesi: "PENUTUP & KONTAK"
+      }
+    ];
+
+    let currentSlide = 0;
+    const totalSlides = slidesData.length;
+    const deck = document.getElementById("deck");
+    const slideNum = document.getElementById("slide-num");
+    const sessionTag = document.getElementById("session-tag");
+    const thumbList = document.getElementById("thumb-list");
+    const sidebarOverlay = document.getElementById("sidebar-overlay");
+    const slideSidebar = document.getElementById("slide-sidebar");
+
+    // Simulasi File System & Database Kernel Virtual
+    const virtualKernelFS = {
+      "/proc/version": "Linux version 6.8.0-45-generic (buildd@lcy02-amd64-080) (gcc version 13.2.0) #45-Ubuntu SMP PREEMPT_DYNAMIC",
+      "/proc/sys/kernel/osrelease": "6.8.0-45-generic",
+      "/proc/sys/kernel/randomize_va_space": "2",
+      "/proc/sys/net/ipv4/ip_forward": "0",
+      "/proc/cpuinfo": "model name\t: Intel(R) Core(TM) i7-12700H\ncpu MHz\t\t: 2688.000\ncache size\t: 24576 KB\ncpu cores\t: 14",
+      "/proc/meminfo": "MemTotal:       16248900 kB\nMemFree:         8124020 kB\nMemAvailable:   12450800 kB\nBuffers:          450200 kB\nCached:          4210000 kB",
+      "/proc/partitions": "major minor  #blocks  name\n   8        0  500107608 sda\n   8        1     524288 sda1\n   8        2  499582320 sda2",
+      "/proc/loadavg": "0.15 0.18 0.12 1/842 14205",
+      "/proc/1/cmdline": "/sbin/init splash",
+      "/etc/passwd": "root:x:0:0:root:/root:/bin/bash\nsiswa:x:1000:1000:Siswa TKJ:/home/siswa:/bin/bash",
+      "/proc/modules": "ext4 983040 2 - Live 0xffffffffc0450000\njbd2 184320 1 ext4, Live 0xffffffffc03e0000\ntls 131072 0 - Live 0xffffffffc0390000"
+    };
+
+    // Render Thumbnail Drawer
+    function renderThumbnails() {
+      thumbList.innerHTML = "";
+      slidesData.forEach((slide, idx) => {
+        const thumb = document.createElement("div");
+        thumb.className = "thumb-card" + (idx === currentSlide ? " active" : "");
+        thumb.id = `thumb-${idx}`;
+        thumb.onclick = () => {
+          goToSlide(idx);
+          toggleSidebar();
+        };
+
+        const tagText = slide.isCover ? "COVER" : (slide.isOutro ? "PENUTUP" : (slide.cat || "MATERI"));
+        const titleText = slide.title || `Slide #${idx + 1}`;
+
+        thumb.innerHTML = `
+          <div class="thumb-top-row">
+            <span class="thumb-num">#${String(idx + 1).padStart(2, '0')}</span>
+            <span class="thumb-tag">${tagText}</span>
+          </div>
+          <div class="thumb-title">${titleText}</div>
+        `;
+        thumbList.appendChild(thumb);
+      });
+    }
+
+    function filterThumbnails() {
+      const q = document.getElementById("sidebar-filter").value.toLowerCase();
+      slidesData.forEach((slide, idx) => {
+        const el = document.getElementById(`thumb-${idx}`);
+        const textToSearch = `${idx + 1} ${slide.title || ""} ${slide.cat || ""} ${slide.subtitle || ""}`.toLowerCase();
+        if (textToSearch.includes(q)) {
+          el.style.display = "flex";
+        } else {
+          el.style.display = "none";
+        }
+      });
+    }
+
+    function toggleSidebar() {
+      const isOpen = slideSidebar.classList.contains("open");
+      if (isOpen) {
+        slideSidebar.classList.remove("open");
+        sidebarOverlay.classList.remove("open");
+      } else {
+        slideSidebar.classList.add("open");
+        sidebarOverlay.classList.add("open");
+        // Scroll ke thumbnail yang aktif
+        const activeThumb = document.getElementById(`thumb-${currentSlide}`);
+        if (activeThumb) {
+          activeThumb.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        document.getElementById("sidebar-filter").focus();
+      }
+    }
+
+    function renderDeck() {
+      deck.innerHTML = "";
+      slidesData.forEach((slide, idx) => {
+        const card = document.createElement("div");
+        card.className = "slide-card" + (idx === currentSlide ? " active" : "") 
+          + (slide.isCover ? " cover-card" : "")
+          + (slide.isOutro ? " outro-card" : "");
+
+        if (slide.isCover) {
+          card.innerHTML = `
+            <div class="cover-top-header">
+              <div class="cover-program">${slide.program}</div>
+              <div class="cover-subprogram">${slide.subprogram}</div>
+              <div class="cover-chapter-badge">${slide.chapter}</div>
+            </div>
+
+            <div class="cover-main-hero">
+              <h1 class="cover-title">${slide.title}</h1>
+              <p class="cover-subtitle">${slide.subtitle}</p>
+            </div>
+            
+            <div class="terminal-container" style="max-width: 680px; width: 100%; height: 200px; min-height: 200px;">
+              <div class="terminal-header-bar">
+                <div class="terminal-dots">
+                  <span class="dot dot-red"></span>
+                  <span class="dot dot-yellow"></span>
+                  <span class="dot dot-green"></span>
+                </div>
+                <div class="terminal-tab-title">bash — siswa@wikrama-lab:~</div>
+                <span class="challenge-status status-success">Kernel Simulator Online</span>
+              </div>
+              <div class="terminal-screen" style="font-size: 0.8rem;">
+                <div><span class="term-prompt">siswa@wikrama-lab</span>:<span class="term-path">~</span><span class="term-char">$</span> ${slide.terminalCmd}</div>
+                <div class="term-output" style="color:#a7f3d0;">${slide.terminalOut}</div>
+                <div style="margin-top: 8px; color: #94a3b8;">💡 <em>Klik tombol "☰ Daftar Slide" di kiri atas untuk melihat pratinjau thumbnail 50 slide!</em></div>
+              </div>
+            </div>
+
+            <div class="cover-bottom-bar">
+              <div class="teacher-card">
+                <div class="teacher-avatar">👨‍🏫</div>
+                <div>
+                  <div class="teacher-name">Guru Pengampu: ${slide.teacher}</div>
+                  <div class="teacher-certs">${slide.certs}</div>
+                </div>
+              </div>
+              <div class="meta-pills">
+                <span class="meta-pill-item">📅 ${slide.meta1}</span>
+                <span class="meta-pill-item">📊 ${slide.meta2}</span>
+              </div>
+            </div>
+          `;
+        } else if (slide.isOutro) {
+          card.innerHTML = `
+            <h1 class="outro-title">${slide.title}</h1>
+            <p class="outro-quote">${slide.quote}</p>
+            
+            <div class="contact-grid">
+              <div class="contact-card">
+                <div class="contact-icon">✉️</div>
+                <div class="contact-label">Email Kejuruan</div>
+                <div class="contact-val">${slide.email}</div>
+              </div>
+              <div class="contact-card">
+                <div class="contact-icon">📸</div>
+                <div class="contact-label">Instagram TKJ</div>
+                <div class="contact-val">${slide.instagram}</div>
+              </div>
+              <div class="contact-card">
+                <div class="contact-icon">🌐</div>
+                <div class="contact-label">Portal Sekolah</div>
+                <div class="contact-val">${slide.website}</div>
+              </div>
+            </div>
+
+            <div class="meta-pill-item" style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.15); padding: 8px 18px; border-radius: 8px; color: #cbd5e1; font-size: 0.85rem; margin-top: 10px;">
+              <span>🛡️ Laboratorium Jaringan Komputer & Keamanan Siber — SMK Wikrama Kota Bogor</span>
+            </div>
+          `;
+        } else {
+          let bulletsHtml = slide.bullets.map(b => `<li>${b}</li>`).join("");
+
+          card.innerHTML = `
+            <div class="slide-header">
+              <div class="slide-category">${slide.cat}</div>
+              <h2 class="slide-title">${slide.title}</h2>
+            </div>
+            <div class="slide-body">
+              <div class="text-content">
+                <ul>${bulletsHtml}</ul>
+                <div style="margin-top: 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; font-size: 0.95rem;">
+                  <strong style="color: #1e40af;">🎯 Tantangan Praktik Slide Ini:</strong><br>
+                  <span style="color: #1e3a8a;">${slide.targetHint || "Ketik perintah di terminal interaktif sebelah kanan."}</span>
+                </div>
+              </div>
+
+              <!-- Terminal Ubuntu Simulasi Interaktif -->
+              <div class="terminal-container">
+                <div class="terminal-header-bar">
+                  <div class="terminal-dots">
+                    <span class="dot dot-red"></span>
+                    <span class="dot dot-yellow"></span>
+                    <span class="dot dot-green"></span>
+                  </div>
+                  <div class="terminal-tab-title">bash — siswa@wikrama-lab:${currentDir}</div>
+                  <span class="challenge-status status-pending" id="status-badge-${idx}">Tantangan Belum Dicoba</span>
+                </div>
+                
+                <div class="terminal-screen" id="term-screen-${idx}" onclick="focusTerminalInput(${idx})">
+                  <div class="history-entry">
+                    <span style="color: #64748b;"># Ubuntu Kernel & Process Interactive Terminal</span><br>
+                    <span style="color: #64748b;"># Jalankan perintah Linux sesuai materi dan perhatikan hasilnya.</span>
+                  </div>
+                  <div id="cmd-history-output-${idx}"></div>
+                  
+                  <div class="terminal-input-row">
+                    <span class="term-prompt">siswa@wikrama-lab</span>:<span class="term-path">${currentDir}</span><span class="term-char">$</span>
+                    <input type="text" class="term-input" id="term-input-${idx}" autocomplete="off" spellcheck="false" 
+                      onkeydown="handleTerminalInput(event, ${idx}, '${slide.targetCmd || ""}')" />
+                  </div>
+                </div>
+
+                <div class="terminal-footer-hint">
+                  <span>Target: <code style="color: #38bdf8;">${slide.targetCmd || "Bebas Eksplorasi"}</code></span>
+                  ${slide.targetCmd ? `<button class="copy-btn" onclick="autoFillCmd(${idx}, '${slide.targetCmd}')">Salin ke Input</button>` : ""}
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        deck.appendChild(card);
+      });
+      renderThumbnails();
+      updateMeta();
+    }
+
+    function updateMeta() {
+      slideNum.innerText = `Slide ${currentSlide + 1} of ${totalSlides}`;
+      sessionTag.innerText = slidesData[currentSlide].sesi;
+      
+      const cards = document.querySelectorAll(".slide-card");
+      cards.forEach((c, i) => c.classList.toggle("active", i === currentSlide));
+
+      // Update active thumbnail
+      const thumbs = document.querySelectorAll(".thumb-card");
+      thumbs.forEach((t, i) => t.classList.toggle("active", i === currentSlide));
+
+      setTimeout(() => {
+        focusTerminalInput(currentSlide);
+      }, 100);
+    }
+
+    function focusTerminalInput(slideIdx) {
+      const inp = document.getElementById(`term-input-${slideIdx}`);
+      if (inp) inp.focus();
+    }
+
+    function autoFillCmd(slideIdx, cmdText) {
+      const inp = document.getElementById(`term-input-${slideIdx}`);
+      if (inp) {
+        inp.value = cmdText;
+        inp.focus();
+      }
+    }
+
+    function goToSlide(index) {
+      if (index >= 0 && index < totalSlides) {
+        currentSlide = index;
+        updateMeta();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides - 1) {
+        currentSlide++;
+        updateMeta();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateMeta();
+      }
+    }
+
+    // Engine Eksekusi Terminal Kernel
+    function handleTerminalInput(e, slideIdx, targetCommand) {
+      const inp = document.getElementById(`term-input-${slideIdx}`);
+      const historyDiv = document.getElementById(`cmd-history-output-${slideIdx}`);
+      const statusBadge = document.getElementById(`status-badge-${slideIdx}`);
+
+      if (e.key === "Enter") {
+        const rawCmd = inp.value.trim();
+        if (!rawCmd) return;
+
+        cmdHistory.push(rawCmd);
+        historyIdx = cmdHistory.length;
+
+        const entryHtml = document.createElement("div");
+        entryHtml.className = "history-entry";
+        entryHtml.innerHTML = `<div><span class="term-prompt">siswa@wikrama-lab</span>:<span class="term-path">${currentDir}</span><span class="term-char">$</span> ${escapeHtml(rawCmd)}</div>`;
+
+        const [outputHtml, isSuccess] = executeMockKernelBash(rawCmd);
+        entryHtml.innerHTML += outputHtml;
+        historyDiv.appendChild(entryHtml);
+
+        const cleanRaw = rawCmd.replace(/\s+/g, " ").trim();
+        const cleanTarget = targetCommand.replace(/\s+/g, " ").trim();
+
+        if (cleanTarget && (cleanRaw === cleanTarget || cleanRaw.includes(cleanTarget))) {
+          statusBadge.className = "challenge-status status-success";
+          statusBadge.innerText = "✓ TANTANGAN BERHASIL!";
+          const successAlert = document.createElement("div");
+          successAlert.className = "term-output success-msg";
+          successAlert.innerText = "🎉 Luar biasa! Perintah tepat dan berhasil dievaluasi kernel simulasi.";
+          historyDiv.appendChild(successAlert);
+        }
+
+        inp.value = "";
+        const screen = document.getElementById(`term-screen-${slideIdx}`);
+        screen.scrollTop = screen.scrollHeight;
+      } else if (e.key === "ArrowUp") {
+        if (cmdHistory.length > 0 && historyIdx > 0) {
+          historyIdx--;
+          inp.value = cmdHistory[historyIdx];
+        }
+      } else if (e.key === "ArrowDown") {
+        if (historyIdx < cmdHistory.length - 1) {
+          historyIdx++;
+          inp.value = cmdHistory[historyIdx];
+        } else {
+          historyIdx = cmdHistory.length;
+          inp.value = "";
+        }
+      }
+    }
+
+    function executeMockKernelBash(cmd) {
+      const parts = cmd.split(" ");
+      const base = parts[0].toLowerCase();
+
+      if (cmd.includes("| grep")) {
+        const grepTarget = cmd.split("| grep")[1].replace(/["']/g, "").trim();
+        if (cmd.startsWith("lsmod")) {
+          return [`<div class="term-output">jbd2                  184320  1 ext4\next4                  983040  2</div>`, true];
+        }
+        if (cmd.startsWith("ps aux")) {
+          if (grepTarget === "defunct") {
+            return [`<div class="term-output">siswa     1842  0.0  0.0      0     0 pts/0    Z+   09:12   0:00 [bad_app] &lt;defunct&gt;</div>`, true];
+          }
+          return [`<div class="term-output">root      1042  0.0  0.2  18204  4210 ?        Ss   08:30   0:00 /usr/sbin/sshd -D</div>`, true];
+        }
+      }
+
+      switch (base) {
+        case "uname":
+          if (cmd.includes("-r")) return [`<div class="term-output">6.8.0-45-generic</div>`, true];
+          if (cmd.includes("-s")) return [`<div class="term-output">Linux</div>`, true];
+          if (cmd.includes("-a")) return [`<div class="term-output">Linux wikrama-lab 6.8.0-45-generic #45-Ubuntu SMP PREEMPT_DYNAMIC x86_64 GNU/Linux</div>`, true];
+          return [`<div class="term-output">Linux</div>`, true];
+
+        case "whoami":
+          return [`<div class="term-output">siswa</div>`, true];
+
+        case "id":
+          return [`<div class="term-output">uid=1000(siswa) gid=1000(siswa) groups=1000(siswa),27(sudo),1001(tkj)</div>`, true];
+
+        case "clear":
+          setTimeout(() => {
+            const hist = document.getElementById(`cmd-history-output-${currentSlide}`);
+            if (hist) hist.innerHTML = "";
+          }, 50);
+          return ["", true];
+
+        case "ps":
+          if (cmd.includes("aux")) {
+            return [`<div class="term-output">USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root         1  0.0  0.1 168420 12400 ?        Ss   08:00   0:01 /sbin/init splash
+root       412  0.0  0.2  45200  8400 ?        Ss   08:00   0:00 /lib/systemd/systemd-journald
+root       890  0.0  0.3  18400  6200 ?        Ss   08:01   0:00 /usr/sbin/sshd -D
+siswa     1240  0.0  0.4  22100  9100 pts/0    Ss   08:30   0:00 -bash
+siswa     1842  0.0  0.0      0     0 pts/0    Z+   09:12   0:00 [bad_app] &lt;defunct&gt;
+siswa     2014  0.0  0.1  18400  3200 pts/0    R+   09:35   0:00 ps aux</div>`, true];
+          }
+          if (cmd.includes("-ef")) {
+            return [`<div class="term-output">UID        PID  PPID  C STIME TTY          TIME CMD
+root         1     0  0 08:00 ?        00:00:01 /sbin/init
+root       890     1  0 08:01 ?        00:00:00 /usr/sbin/sshd -D
+siswa     1240   890  0 08:30 pts/0    00:00:00 -bash
+siswa     2015  1240  0 09:35 pts/0    00:00:00 ps -ef</div>`, true];
+          }
+          if (cmd.includes("-o")) {
+            return [`<div class="term-output">  PID  PPID COMMAND
+ 1240   890 bash
+ 2016  1240 ps</div>`, true];
+          }
+          return [`<div class="term-output">  PID TTY          TIME CMD
+ 1240 pts/0    00:00:00 bash
+ 2017 pts/0    00:00:00 ps</div>`, true];
+
+        case "pstree":
+          return [`<div class="term-output">systemd─┬─systemd-journal
+        ├─sshd───sshd───bash───pstree
+        └─cron</div>`, true];
+
+        case "lsmod":
+          return [`<div class="term-output">Module                  Size  Used by
+ext4                  983040  2
+jbd2                  184320  1 ext4
+tls                   131072  0
+intel_rapl_msr         20480  0</div>`, true];
+
+        case "df":
+          if (cmd.includes("-T") || cmd.includes("-t")) {
+            return [`<div class="term-output">Filesystem     Type     1K-blocks      Used Available Use% Mounted on
+/dev/sda2      ext4     499582320  14280140 460124180   4% /
+/dev/sda1      vfat        524288      6420    517868   2% /boot/efi
+tmpfs          tmpfs      8124020         0   8124020   0% /tmp</div>`, true];
+          }
+          return [`<div class="term-output">Filesystem     1K-blocks      Used Available Use% Mounted on
+/dev/sda2      499582320  14280140 460124180   4% /
+tmpfs            8124020         0   8124020   0% /tmp</div>`, true];
+
+        case "stat":
+          const targetFile = parts[1] || "/etc/passwd";
+          return [`<div class="term-output">  File: ${escapeHtml(targetFile)}
+  Size: 1842            Blocks: 8          IO Block: 4096   regular file
+Device: 8,2             Inode: 1441824     Links: 1
+Access: (0644/-rw-r--r--)  Uid: ( 0/ root)   Gid: ( 0/ root)
+Access: 2026-09-21 08:30:12.000000000 +0700
+Modify: 2026-09-21 08:28:40.000000000 +0700
+Change: 2026-09-21 08:28:40.000000000 +0700</div>`, true];
+
+        case "ls":
+          if (cmd.includes("-i")) {
+            return [`<div class="term-output">1441824 documents   1441825 downloads   1441826 target.txt</div>`, true];
+          }
+          if (cmd.includes("/proc/1/fd")) {
+            return [`<div class="term-output">lrwx------ 1 root root 64 Sep 21 08:00 0 -> /dev/null
+lrwx------ 1 root root 64 Sep 21 08:00 1 -> /dev/null
+lrwx------ 1 root root 64 Sep 21 08:00 2 -> /dev/null</div>`, true];
+          }
+          return [`<div class="term-output" style="color:#38bdf8; font-weight:600;">documents   downloads   target.txt</div>`, true];
+
+        case "cat":
+          const f = parts[1] || "";
+          if (virtualKernelFS[f]) {
+            return [`<div class="term-output">${escapeHtml(virtualKernelFS[f])}</div>`, true];
+          }
+          return [`<div class="term-output error">cat: ${escapeHtml(f)}: No such file or directory</div>`, false];
+
+        case "dmesg":
+          return [`<div class="term-output">[    0.000000] Linux version 6.8.0-45-generic
+[    0.000000] Command line: BOOT_IMAGE=/boot/vmlinuz-6.8.0-45-generic root=/dev/sda2 ro splash
+[    0.001420] x86/fpu: Supporting XSAVE feature 0x001: 'x87 floating point registers'
+[    1.240120] EXT4-fs (sda2): mounted filesystem 5b4c12 with ordered data mode.
+[    2.104200] systemd[1]: Starting OpenSSH server daemon...</div>`, true];
+
+        case "top":
+          return [`<div class="term-output">top - 09:35:10 up  1:35,  1 user,  load average: 0.15, 0.18, 0.12
+Tasks: 184 total,   1 running, 182 sleeping,   0 stopped,   1 zombie
+%Cpu(s):  1.2 us,  0.5 sy,  0.0 ni, 98.2 id,  0.1 wa,  0.0 hi,  0.0 si
+MiB Mem :  15868.1 total,   7933.6 free,   4112.4 used,   3822.1 buff/cache
+
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   1240 siswa     20   0   22100   9100   4200 S   0.7   0.1   0:00.42 bash
+    890 root      20   0   18400   6200   3100 S   0.0   0.0   0:00.08 sshd</div>`, true];
+
+        case "kill":
+          if (cmd.includes("-l")) {
+            return [`<div class="term-output"> 1) SIGHUP   2) SIGINT   3) SIGQUIT  9) SIGKILL  15) SIGTERM</div>`, true];
+          }
+          return [`<div class="term-output" style="color:#34d399;">Process terminated.</div>`, true];
+
+        case "systemctl":
+          if (cmd.includes("status")) {
+            return [`<div class="term-output">● sshd.service - OpenSSH server daemon
+     Loaded: loaded (/lib/systemd/system/ssh.service; enabled; vendor preset: enabled)
+     Active: <span style="color:#10b981; font-weight:bold;">active (running)</span> since Mon 2026-09-21 08:01:10 WIB; 1h 34min ago
+   Main PID: 890 (sshd)</div>`, true];
+          }
+          return [`<div class="term-output">UNIT            LOAD   ACTIVE SUB     DESCRIPTION
+cron.service    loaded active running Regular background program processing daemon
+sshd.service    loaded active running OpenSSH server daemon</div>`, true];
+
+        case "mount":
+          return [`<div class="term-output">/dev/sda2 on / type ext4 (rw,relatime,errors=remount-ro,data=ordered)
+tmpfs on /tmp type tmpfs (rw,nosuid,nodev,noexec,relatime)</div>`, true];
+
+        case "file":
+          return [`<div class="term-output">${parts[1] || "file"}: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked</div>`, true];
+
+        case "sha256sum":
+          return [`<div class="term-output">5b2f84c2084c8a16709849204018241029482402102402104209420842094820  ${parts[1] || "file"}</div>`, true];
+
+        case "echo":
+          const textMatch = cmd.match(/echo\s+["']?([^"'>]+)["']?/);
+          return [`<div class="term-output">${escapeHtml(textMatch ? textMatch[1] : parts.slice(1).join(" "))}</div>`, true];
+
+        default:
+          return [`<div class="term-output error">bash: ${escapeHtml(base)}: command not found</div>`, false];
+      }
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (activeEl.classList.contains("term-input") || activeEl.id === "sidebar-filter");
+
+      if (e.key === "m" || e.key === "M") {
+        if (!isTyping) {
+          e.preventDefault();
+          toggleSidebar();
+          return;
+        }
+      }
+
+      if (e.key === "Escape") {
+        if (slideSidebar.classList.contains("open")) {
+          toggleSidebar();
+          return;
+        }
+      }
+
+      if (!isTyping) {
+        if (e.key === "ArrowRight" || e.key === " ") {
+          nextSlide();
+        } else if (e.key === "ArrowLeft") {
+          prevSlide();
+        }
+      }
+    });
+
+    renderDeck();
+  </script>
+</body>
+</html>
